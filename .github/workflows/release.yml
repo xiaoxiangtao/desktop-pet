@@ -11,10 +11,12 @@ permissions:
 
 jobs:
   build:
-    # 必须是 arm64 runner：产物是 arm64 的 .app，而且 SpeechAnalyzer 要 macOS 26。
-    # GitHub 的 macos-15 镜像若尚未提供 26，这个 job 会在编译期失败并说明原因——
-    # 那时改用自托管 runner，或在本机跑 scripts/make_dmg.sh 后手工上传。
-    runs-on: macos-15
+    # **必须是 macOS 26 的 arm64 镜像**，两个原因缺一不可：
+    #   1. 编译要 macOS 26 SDK（SpeechAnalyzer 是 26 才有的 API），SDK 随 Xcode 26 走；
+    #   2. 跑测试要真的 macOS 26——Package.swift 的部署目标是 26.0，
+    #      编出来的测试二进制在更低的系统上根本起不来。
+    # 产物也是 arm64 的 .app，所以不能用 -intel 那几个标签。
+    runs-on: macos-26
     steps:
       - uses: actions/checkout@v4
 
