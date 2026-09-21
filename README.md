@@ -50,7 +50,7 @@
 需要 Xcode 26 的命令行工具。
 
 ```bash
-git clone <仓库地址>
+git clone https://github.com/xiaoxiangtao/desktop-pet.git
 cd desktop-pet
 scripts/make_app.sh --install     # 编译 + 组装 .app + 装进 /Applications + 启动
 ```
