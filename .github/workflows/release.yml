@@ -20,8 +20,17 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: 选 Xcode
-        run: sudo xcode-select -s /Applications/Xcode.app
+      # 先把环境打出来。CI 挂掉时最常见的原因就是工具链版本不对，
+      # 而没有这几行的话日志里只有一句语焉不详的编译错误。
+      - name: 环境自检
+        run: |
+          sw_vers
+          xcodebuild -version
+          swift --version
+          # 部署目标是 macOS 26，SDK 低于它就没有 SpeechAnalyzer，早点说清楚比
+          # 让它在某个源文件上报"找不到类型"强。
+          major="$(sw_vers -productVersion | cut -d. -f1)"
+          [ "$major" -ge 26 ] || { echo "::error::runner 是 macOS $major，需要 26+"; exit 1; }
 
       - name: 版本号对得上标签
         if: startsWith(github.ref, 'refs/tags/v')
