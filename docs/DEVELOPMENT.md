@@ -95,14 +95,52 @@ SelectionKit
 **用 `URLProtocol` 桩测对话路径的那组测试必须串行**（`@Suite(.serialized)`）：
 它们共用静态状态，并行跑会互相覆盖，表现为随机几条失败。
 
+**不要用 SwiftPM 生成的 `Bundle.module`。** 它是编译期生成的，而**不同工具链
+生成的查找顺序不一样**：Swift 6.4 会看 `.app/Contents/Resources/`，Swift 6.3
+只看 `.app` 根目录和一条写死的构建目录。后果是本机构建正常、换台机器构建的包
+一启动就 fatalError。资源查找统一走 `PetCore/ResourceBundle.swift`。
+
+顺带一提，"把资源也放一份到 `.app` 根目录去迁就旧访问器"是行不通的——
+codesign 会报 `unsealed contents present in the bundle root`，签名直接失效。
+所以 `make_app.sh` 里那句 `codesign --verify` 不能删。
+
 ## 发版
+
+**在本机打包，不走 CI。** 这不是偷懒，是 v0.1.0 的教训：CI 那台机器上的 Swift
+版本和你机器上的不一定一样，而 SwiftPM 生成的资源查找代码会因此不同——
+CI 全绿、DMG 照出、用户双击闪退。本机打包能保证"发出去的包"和"你验过的包"
+是同一个文件。
 
 ```bash
 echo 0.2.0 > VERSION
-git commit -am "0.2.0"
-git tag v0.2.0 && git push --tags
+git commit -am "0.2.0" && git push
+
+scripts/make_dmg.sh          # 出 dist/DesktopPet-0.2.0-arm64.dmg
 ```
 
-CI（`.github/workflows/release.yml`）会校验标签和 `VERSION` 一致、跑测试、出 DMG、
-建 Release。版本号不一致会卡住——用户装上看到的版本号和 Release 页对不上，
-发出去就改不了了。
+**上传之前必须真的装上跑一遍**，而且要断掉那条会掩盖问题的兜底路径：
+
+```bash
+# Bundle 查找有一条编译期写死的构建目录兜底。它在你机器上是存在的，
+# 于是即使包里资源是缺的也照样能跑起来——这正是 v0.1.0 骗过验收的原因。
+mv /tmp/desktop-pet-build /tmp/desktop-pet-build.hidden
+
+hdiutil attach dist/DesktopPet-0.2.0-arm64.dmg -nobrowse
+cp -R "/Volumes/DesktopPet 0.2.0/DesktopPet.app" /tmp/verify.app
+hdiutil detach "/Volumes/DesktopPet 0.2.0"
+/tmp/verify.app/Contents/MacOS/DesktopPet --self-check   # 必须退出码 0
+/tmp/verify.app/Contents/MacOS/DesktopPet                # 猫要真的出现在桌面上
+
+mv /tmp/desktop-pet-build.hidden /tmp/desktop-pet-build
+```
+
+确认无误再发：
+
+```bash
+git tag v0.2.0 && git push --tags
+gh release create v0.2.0 dist/DesktopPet-0.2.0-arm64.dmg \
+    --title "v0.2.0" --notes-file docs/release-notes.md
+```
+
+CI（`.github/workflows/ci.yml`）只跑测试 + 组装 .app 做一次 `--self-check`，
+不产出发布物。

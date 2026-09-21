@@ -60,6 +60,7 @@ scripts/make_app.sh --install     # 编译 + 组装 .app + 装进 /Applications 
 ```bash
 scripts/build.sh          # 只编译
 scripts/build.sh test     # 跑单元测试（90 条）
+scripts/make_app.sh && /tmp/desktop-pet-stage/DesktopPet.app/Contents/MacOS/DesktopPet --self-check  # 验包完整性
 scripts/make_app.sh       # 只组装到 /tmp/desktop-pet-stage
 scripts/make_dmg.sh       # 出 dist/DesktopPet-<版本>-arm64.dmg
 ```

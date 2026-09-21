@@ -17,7 +17,7 @@ let package = Package(
         .target(name: "PetCore"),
         // 动画时序与雪碧图清单。素材（webp + cat-anim.json）作为资源打进来，
         // 这样 swift test 也能加载清单做逐帧断言，不必依赖 app bundle。
-        .target(name: "PetAnimation", resources: [.process("Resources")]),
+        .target(name: "PetAnimation", dependencies: ["PetCore"], resources: [.process("Resources")]),
         .target(name: "Providers", dependencies: ["PetCore"]),
         // 依赖 Providers 是因为字幕笔记走的就是用户配的那个对话 API——
         // 不为笔记单开一套凭据和一个模型。

@@ -1,4 +1,8 @@
 import Foundation
+import PetCore
+
+/// 定位本 target 所在 bundle 用的标记类，见 `ResourceBundle`。
+final class VocabKitAnchor: ResourceAnchor {}
 
 /// 「这句话该不该自动触发查词」的判定。
 ///
@@ -19,7 +23,9 @@ public enum VocabEligibility {
     /// CEFR A1 词表：入门级词汇不值得记生词本。表在 `Resources/cefr_a1_words.txt`，
     /// 取不到时退化成空集合——**不能因为一个可选数据文件缺失就让查词整个失灵**。
     static let a1Words: Set<String> = {
-        guard let url = Bundle.module.url(forResource: "cefr_a1_words", withExtension: "txt"),
+        let bundle = ResourceBundle.named("DesktopPet_VocabKit", anchor: VocabKitAnchor.self)
+            ?? Bundle(for: VocabKitAnchor.self)
+        guard let url = bundle.url(forResource: "cefr_a1_words", withExtension: "txt"),
               let text = try? String(contentsOf: url, encoding: .utf8) else { return [] }
         return Set(text.split(separator: "\n")
             .map { $0.trimmingCharacters(in: .whitespaces).lowercased() }
@@ -33,6 +39,9 @@ public enum VocabEligibility {
     /// 单个英文词，允许连字符和撇号（`well-known`、`don't`）。
     private static let singleWordPattern = try! NSRegularExpression(
         pattern: "^[A-Za-z]+(?:['-][A-Za-z]+)*$")
+
+    /// 词表加载了多少条。给 `--self-check` 用——装好的包里它不该是 0。
+    public static var a1WordCount: Int { a1Words.count }
 
     public static func qualifies(_ text: String) -> Bool {
         let stripped = text.trimmingCharacters(in: .whitespacesAndNewlines)

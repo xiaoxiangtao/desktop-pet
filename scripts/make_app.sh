@@ -28,10 +28,25 @@ rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 cp "$BIN" "$APP/Contents/MacOS/DesktopPet"
 
-# SwiftPM 的资源 bundle 要一起带上，否则精灵图和 CEFR 词表加载不到
+# SwiftPM 的资源 bundle 要一起带上，否则精灵图和 CEFR 词表加载不到。
+# 按 macOS 的规矩放在 Contents/Resources：**不要往 .app 根目录放**，
+# 那会让 codesign 报 `unsealed contents present in the bundle root`、签名直接失效。
+# 代码侧不依赖 SwiftPM 生成的 Bundle.module 去找它们（那东西的查找顺序随工具链变），
+# 自己的查找逻辑在 Sources/PetCore/ResourceBundle.swift。
 for b in "$BIN_DIR"/*.bundle; do
     [ -e "$b" ] && cp -R "$b" "$APP/Contents/Resources/"
 done
+
+# **硬校验：素材必须真的在包里。**
+# 没有这一段的话，缺素材的表现是"包打出来了、CI 全绿、用户双击闪退"——
+# 2026-09-21 就是这么发出去一个起不来的 0.1.0。
+find "$APP/Contents/Resources" -name "cat-anim.json" | grep -q . \
+    || { echo "✗ 找不到 cat-anim.json，精灵图加载不了，app 会在启动时崩"; exit 1; }
+find "$APP/Contents/Resources" -name "cat-poses.webp" | grep -q . \
+    || { echo "✗ 找不到 cat-poses.webp"; exit 1; }
+find "$APP/Contents/Resources" -name "cefr_a1_words.txt" | grep -q . \
+    || { echo "✗ 找不到 cefr_a1_words.txt，查词判定会退化"; exit 1; }
+echo "✓ 资源校验通过"
 
 ICNS="$ROOT/DesktopPet/Sources/PetAnimation/Resources/icon.icns"
 [ -f "$ICNS" ] && cp "$ICNS" "$APP/Contents/Resources/AppIcon.icns"
@@ -76,6 +91,11 @@ if [ "$IDENTITY" = "-" ]; then
 else
     echo "✓ 已用「$IDENTITY」签名"
 fi
+# **必须验签名。** 软链或多余文件落在 bundle 根会让签名失效，而这在
+# `codesign --sign` 那一步是不报错的，只有 --verify 才看得出来。
+codesign --verify --strict "$APP" 2>&1 | grep -q . \
+    && { echo "✗ 签名校验不过，Gatekeeper 会拒绝这个包"; codesign --verify --verbose=2 "$APP"; exit 1; }
+echo "✓ 签名校验通过"
 echo "✓ $APP"
 
 case "${1:-}" in

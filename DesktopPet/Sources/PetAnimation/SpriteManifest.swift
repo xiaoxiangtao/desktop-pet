@@ -1,4 +1,8 @@
 import Foundation
+import PetCore
+
+/// 定位本 target 所在 bundle 用的标记类，见 `ResourceBundle`。
+final class PetAnimationAnchor: ResourceAnchor {}
 import CoreGraphics
 
 /// `cat-anim.json` 的模型。由 `code/调试脚本/build_cat_sprite_sheets.py` 生成，不要手改。
@@ -68,9 +72,14 @@ public struct SpriteManifest: Codable, Sendable {
     public var displayWidth: Double { petBox.width * Self.scale }
     public var displayHeight: Double { petBox.height * Self.scale }
 
-    /// 素材所在的 bundle。AppKit 层从这里取 webp——`Bundle.module` 本身是 internal，
-    /// 不能跨 target 直接用，也不能当 public 函数的默认参数，所以在这里转一道。
-    public static var resourceBundle: Bundle { .module }
+    /// 素材所在的 bundle。
+    ///
+    /// **不用 `Bundle.module`**：它的查找顺序随工具链变，旧工具链生成的那版不看
+    /// `.app/Contents/Resources/`，结果是本机构建正常、CI 构建的包一启动就
+    /// fatalError。理由详见 `ResourceBundle`。
+    public static let resourceBundle: Bundle =
+        ResourceBundle.named("DesktopPet_PetAnimation", anchor: PetAnimationAnchor.self)
+        ?? Bundle(for: PetAnimationAnchor.self)
 
     public static func load() throws -> SpriteManifest { try load(from: resourceBundle) }
 

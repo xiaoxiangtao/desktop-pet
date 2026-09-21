@@ -1,0 +1,43 @@
+name: CI
+
+# **只跑测试，不发布。**
+#
+# 发布刻意留在本地（`scripts/make_dmg.sh` + `gh release upload`），因为
+# **CI 的 Swift 版本和维护者机器上的不一定一样**。v0.1.0 就是这么发坏的：
+# CI 用的是 Swift 6.3.3，它生成的 `Bundle.module` 访问器只看 `.app` 根目录，
+# 而资源按规矩在 `Contents/Resources/`，于是 CI 全绿、DMG 照出、用户双击闪退。
+# 本地打包的好处是"发出去的包"和"验过的包"永远是同一个文件。
+#
+# 这条流水线的价值在别处：别人提 PR 时自动验一遍，以及及早发现
+# "换个工具链就编不过/跑不过"。
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: macos-26
+    steps:
+      - uses: actions/checkout@v4
+
+      # CI 挂掉最常见的原因就是工具链版本不对，没有这几行日志里只剩一句
+      # 语焉不详的编译错误。
+      - name: 环境自检
+        run: |
+          sw_vers
+          xcodebuild -version
+          swift --version
+          major="$(sw_vers -productVersion | cut -d. -f1)"
+          [ "$major" -ge 26 ] || { echo "::error::runner 是 macOS $major，需要 26+"; exit 1; }
+
+      - name: 跑测试
+        run: scripts/build.sh test
+
+      # 组装一次 .app 并让它自检。**这一步才是防住 v0.1.0 那类问题的关键**：
+      # 单元测试跑在测试 bundle 里，走不到 .app 的资源查找路径，一条都不会红。
+      - name: 组装 .app 并自检
+        run: |
+          scripts/make_app.sh
+          /tmp/desktop-pet-stage/DesktopPet.app/Contents/MacOS/DesktopPet --self-check
