@@ -1,0 +1,68 @@
+name: Release
+
+# 打一个 v* 标签就出 DMG 并建 Release；也可以手动触发只做构建验证。
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    # 必须是 arm64 runner：产物是 arm64 的 .app，而且 SpeechAnalyzer 要 macOS 26。
+    # GitHub 的 macos-15 镜像若尚未提供 26，这个 job 会在编译期失败并说明原因——
+    # 那时改用自托管 runner，或在本机跑 scripts/make_dmg.sh 后手工上传。
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 选 Xcode
+        run: sudo xcode-select -s /Applications/Xcode.app
+
+      - name: 版本号对得上标签
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          # VERSION 是 .app 里 CFBundleShortVersionString 的来源。它和标签不一致的话，
+          # 用户装上看到的版本号会和 Release 页对不上——发出去就改不了了，所以卡在这里。
+          tag="${GITHUB_REF_NAME#v}"
+          file="$(cat VERSION)"
+          [ "$tag" = "$file" ] || { echo "标签 v$tag 与 VERSION($file) 不一致"; exit 1; }
+
+      - name: 跑测试
+        run: scripts/build.sh test
+
+      - name: 打 DMG
+        run: scripts/make_dmg.sh
+
+      - name: 留存产物
+        uses: actions/upload-artifact@v4
+        with:
+          name: DesktopPet-dmg
+          path: dist/*.dmg
+
+      - name: 建 Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*.dmg
+          # 未签名包的打开方式必须写在 Release 说明里——用户是从这个页面下载的，
+          # 不一定会回去看 README。
+          body: |
+            ## 安装
+
+            下载 DMG → 拖进「应用程序」→ **右键点击 DesktopPet → 打开**。
+
+            这个包**未经 Apple 签名和公证**，首次打开会被 Gatekeeper 拦下，属于正常现象。
+            如果提示「已损坏」，在终端里跑一次：
+
+            ```bash
+            xattr -dr com.apple.quarantine /Applications/DesktopPet.app
+            ```
+
+            需要 macOS 26 或更高版本，Apple Silicon。
+
+            首次启动会弹出设置向导：配置对话 API、授予系统权限、可选下载词典。
+            三项都可以跳过，对应功能不可用而已。
+          generate_release_notes: true

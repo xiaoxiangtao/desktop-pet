@@ -1,0 +1,47 @@
+#!/bin/bash
+# 假的 hermes，按 FAKE_HERMES_MODE 回放各种 fixture。
+# 方案 §5.3：这样在没有 Hermes 订阅的机器上也能测完整逻辑，也不烧真实 token。
+case "${FAKE_HERMES_MODE:-ok}" in
+  ok)
+    # 正常回复。session_id 打在 stderr 上（真实 hermes 就是这样）
+    echo "session_id: sess-abc123" >&2
+    echo "喵，我在。"
+    ;;
+  no-session)
+    # --continue 找不到会话时的样子：exit 1 + stderr 上的固定措辞
+    if [[ " $* " == *" --continue "* ]]; then
+      echo "No session found matching 'desktop-pet-xyz'" >&2
+      exit 1
+    fi
+    echo "session_id: sess-new999" >&2
+    echo "新会话建好了。"
+    ;;
+  rename-check)
+    # 记录 rename 被调用时的参数，供测试断言
+    if [[ "$1" == "sessions" && "$2" == "rename" ]]; then
+      echo "$3 $4" > "$FAKE_HERMES_RENAME_LOG"
+      exit 0
+    fi
+    if [[ " $* " == *" --continue "* ]]; then
+      echo "No session found matching x" >&2; exit 1
+    fi
+    echo "session_id: sess-new999" >&2
+    echo "建好了。"
+    ;;
+  stdout-pollution)
+    # session_id 万一跑到 stdout 上，也必须从回复里剥掉
+    echo "session_id: sess-onstdout"
+    echo "真正的回复。"
+    ;;
+  fail)
+    echo "something exploded" >&2
+    exit 1
+    ;;
+  empty)
+    echo "session_id: sess-x" >&2
+    echo ""
+    ;;
+  hang)
+    sleep 300
+    ;;
+esac

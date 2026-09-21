@@ -1,0 +1,18 @@
+# 构建产物
+.build/
+.swiftpm/
+dist/
+*.xcuserdatadata
+DerivedData/
+
+# 分发时不该入库的产物
+*.dmg
+*.app/
+
+# macOS
+.DS_Store
+
+# 本地数据（词典、生词本、字幕、日志都在 Application Support / Logs 下，
+# 仓库里只有从源码树跑时会出现这些）
+data/
+log/
